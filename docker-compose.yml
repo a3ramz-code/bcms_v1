@@ -1,0 +1,99 @@
+version: "3.9"
+services:
+  app:
+    build: ./backend
+    container_name: bcms_app
+    env_file: ./backend/.env
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - bcmsnet
+
+  queue:
+    build: ./backend
+    container_name: bcms_queue
+    command: php artisan queue:work --queue=high,default,low --tries=3 --timeout=120
+    env_file: ./backend/.env
+    depends_on:
+      - app
+      - redis
+      - db
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - bcmsnet
+
+  horizon:
+    build: ./backend
+    container_name: bcms_horizon
+    command: php artisan horizon
+    env_file: ./backend/.env
+    depends_on:
+      - app
+      - redis
+      - db
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - bcmsnet
+
+  frontend:
+    build: ./frontend
+    container_name: bcms_frontend
+    env_file: ./frontend/.env.local
+    depends_on:
+      - app
+    ports:
+      - "3000:3000"
+    networks:
+      - bcmsnet
+    volumes:
+      - ./frontend:/app
+
+  nginx:
+    image: nginx:1.28
+    container_name: bcms_nginx
+    depends_on:
+      - app
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./backend/public:/var/www/html/public
+      - ./frontend/.next:/usr/share/nginx/html/frontend
+      - ./certs:/etc/letsencrypt
+    networks:
+      - bcmsnet
+
+  db:
+    image: postgres:18
+    container_name: bcms_db
+    environment:
+      POSTGRES_USER: bcms
+      POSTGRES_PASSWORD: 4Sehat&5Sempurna
+      POSTGRES_DB: bcms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - bcmsnet
+
+  redis:
+    image: redis:8
+    container_name: bcms_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - bcmsnet
+
+networks:
+  bcmsnet:
+
+volumes:
+  pgdata:
